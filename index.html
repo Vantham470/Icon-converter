@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IconForge — Client-Side Icon & Favicon Converter</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JSZip for Batch ZIP downloads -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Checkerboard transparency grid for light & dark modes */
+    .checkerboard {
+      background-color: #ffffff;
+      background-image: 
+        linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+        linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+        linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    .dark .checkerboard {
+      background-color: #18181b;
+      background-image: 
+        linear-gradient(45deg, #27272a 25%, transparent 25%), 
+        linear-gradient(-45deg, #27272a 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #27272a 75%), 
+        linear-gradient(-45deg, transparent 75%, #27272a 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    /* Custom Range Slider Styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #cbd5e1;
+    }
+    .dark input[type="range"]::-webkit-slider-runnable-track {
+      background: #3f3f46;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -5px;
+      background-color: #6366f1;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background-color: #4f46e5;
+    }
+
+    /* Smooth Toast Animation */
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .toast-enter {
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen flex flex-col transition-colors duration-200 selection:bg-brand-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-30 border-b border-slate-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+          <!-- Vector App Logo -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="3.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+            <path d="M3 17.5A3.5 3.5 0 0 1 6.5 14H10v3.5A3.5 3.5 0 0 1 6.5 21 3.5 3.5 0 0 1 3 17.5z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg tracking-tight leading-none flex items-center gap-2">
+            IconForge
+            <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">100% Client-Side</span>
+          </h1>
+          <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 hidden sm:block">Binary multi-size .ICO, .PNG, .WEBP & .SVG generator</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Sample Demo Image Button -->
+        <button id="loadDemoBtn" type="button" class="text-xs sm:text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+          <span>Try Sample Icon</span>
+        </button>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button id="themeToggle" type="button" aria-label="Toggle Theme" class="p-2.5 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-600 dark:text-zinc-400 transition-colors">
+          <!-- Sun icon (shown in dark mode) -->
+          <svg id="sunIcon" class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"></circle>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+          </svg>
+          <!-- Moon icon (shown in light mode) -->
+          <svg id="moonIcon" class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+
+      <!-- LEFT COLUMN: Upload & Configuration Controls (4 cols on lg) -->
+      <div class="lg:col-span-4 space-y-6">
+
+        <!-- 1. File Upload Dropzone Card -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">1. Source Artwork</h2>
+            <span id="sourceMeta" class="text-xs font-mono text-slate-400 dark:text-zinc-500">No file</span>
+          </div>
+
+          <div id="dropZone" tabindex="0" role="button" aria-label="Upload image file"
+               class="group relative border-2 border-dashed border-slate-300 dark:border-zinc-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl p-6 text-center cursor-pointer transition-all duration-200 bg-slate-50/50 dark:bg-zinc-950/50 hover:bg-brand-50/30 dark:hover:bg-brand-500/5">
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" />
+            
+            <!-- Empty Upload Prompt -->
+            <div id="uploadPrompt" class="space-y-2">
+              <div class="w-12 h-12 mx-auto rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 group-hover:text-brand-500 group-hover:scale-105 transition-all shadow-sm">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+              </div>
+              <div class="text-sm font-medium text-slate-700 dark:text-zinc-200">
+                Drop image here or <span class="text-brand-600 dark:text-brand-400 underline decoration-brand-500/40 underline-offset-2">browse</span>
+              </div>
+              <p class="text-xs text-slate-400 dark:text-zinc-500">Supports PNG, JPG, SVG, WEBP</p>
+            </div>
+
+            <!-- Uploaded Image Summary -->
+            <div id="uploadedPreviewBox" class="hidden flex items-center gap-4 text-left">
+              <div class="w-16 h-16 rounded-xl checkerboard border border-slate-200 dark:border-zinc-700 overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
+                <img id="originalThumb" alt="Uploaded source" class="max-w-full max-h-full object-contain" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="fileNameDisplay" class="text-sm font-medium truncate text-slate-800 dark:text-zinc-100">icon.png</p>
+                <p id="fileDimensionsDisplay" class="text-xs font-mono text-slate-500 dark:text-zinc-400 mt-0.5">512 × 512 px</p>
+                <span class="inline-block mt-1.5 text-[11px] font-medium text-brand-600 dark:text-brand-400 group-hover:underline">Click or drop to replace</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Image Adjustments Card -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-5 shadow-sm space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">2. Styling & Geometry</h2>
+            <button id="resetAdjustmentsBtn" type="button" class="text-xs text-slate-500 hover:text-brand-500 dark:text-zinc-400 dark:hover:text-brand-400 transition-colors">Reset</button>
+          </div>
+
+          <!-- Background Fill Toggle & Color Picker -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-slate-700 dark:text-zinc-300">Background Fill</label>
+              <div class="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200/60 dark:border-zinc-700/60">
+                <button type="button" data-bg-mode="transparent" class="bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm transition-all">Transparent</button>
+                <button type="button" data-bg-mode="solid" class="bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-all">Solid Color</button>
+              </div>
+            </div>
+
+            <div id="colorPickerRow" class="hidden flex items-center justify-between pt-1 pl-1">
+              <span class="text-xs text-slate-500 dark:text-zinc-400">Fill Hex Color</span>
+              <div class="flex items-center gap-2">
+                <input id="bgColorInput" type="color" value="#6366f1" class="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent p-0" />
+                <input id="bgHexText" type="text" value="#6366F1" maxlength="7" class="w-20 px-2 py-1 text-xs font-mono rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 uppercase" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Corner Radius Slider -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="radiusSlider" class="text-sm font-medium text-slate-700 dark:text-zinc-300">Corner Radius</label>
+              <span id="radiusValue" class="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">0%</span>
+            </div>
+            <input id="radiusSlider" type="range" min="0" max="50" value="0" class="w-full" />
+            <div class="flex justify-between text-[11px] text-slate-400 dark:text-zinc-500">
+              <span>Square (0%)</span>
+              <button type="button" id="squirclePreset" class="hover:text-brand-500 transition-colors">iOS Squircle (22%)</button>
+              <span>Circle (50%)</span>
+            </div>
+          </div>
+
+          <!-- Inner Padding Slider -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="paddingSlider" class="text-sm font-medium text-slate-700 dark:text-zinc-300">Inner Padding</label>
+              <span id="paddingValue" class="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">0%</span>
+            </div>
+            <input id="paddingSlider" type="range" min="0" max="30" value="0" class="w-full" />
+          </div>
+
+          <!-- Image Fit Mode -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-slate-700 dark:text-zinc-300 block">Fit Mode</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" data-fit="contain" class="fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 transition-all">Contain</button>
+              <button type="button" data-fit="cover" class="fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all">Cover</button>
+              <button type="button" data-fit="stretch" class="fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all">Stretch</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Target Sizes & Export Format Card -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-5 shadow-sm space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">3. Sizes & Export</h2>
+            <span id="selectedCountBadge" class="text-xs font-mono text-brand-600 dark:text-brand-400">7 selected</span>
+          </div>
+
+          <!-- Quick Size Presets -->
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" id="presetFavicon" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-brand-500/15 hover:text-brand-600 dark:hover:text-brand-400 font-medium transition-colors">
+              Favicon (16, 32, 48)
+            </button>
+            <button type="button" id="presetAll" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-brand-500/15 hover:text-brand-600 dark:hover:text-brand-400 font-medium transition-colors">
+              App Icon (All)
+            </button>
+          </div>
+
+          <!-- Size Checkboxes Grid -->
+          <div id="sizeCheckboxes" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2">
+            <!-- Populated dynamically via JS -->
+          </div>
+
+          <!-- Individual Card Format Selector -->
+          <div class="pt-2 border-t border-slate-100 dark:border-zinc-800">
+            <label class="text-xs font-medium text-slate-500 dark:text-zinc-400 block mb-2">Individual Card Download Format</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" data-format="png" class="format-btn py-1.5 px-2.5 rounded-lg text-xs font-mono font-medium border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 transition-all">.PNG</button>
+              <button type="button" data-format="webp" class="format-btn py-1.5 px-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all">.WEBP</button>
+              <button type="button" data-format="svg" class="format-btn py-1.5 px-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all">.SVG</button>
+            </div>
+          </div>
+
+          <!-- Primary Download Actions -->
+          <div class="space-y-2.5 pt-1">
+            <button id="downloadIcoBtn" type="button" class="w-full py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-medium text-sm shadow-lg shadow-brand-600/20 flex items-center justify-center gap-2 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              <span>Download Multi-Size .ICO</span>
+            </button>
+
+            <button id="downloadZipBtn" type="button" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-zinc-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-zinc-900 font-medium text-sm flex items-center justify-center gap-2 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              <span>Download All as ZIP Package</span>
+            </button>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Live Multi-Size Preview Grid & HTML Snippet (8 cols on lg) -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- Live Preview Header Bar -->
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+              Live Icon Matrix
+              <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </h2>
+            <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Real-time pixel-accurate renders. Click any card to download individually.</p>
+          </div>
+
+          <!-- Simulated Browser Tab Preview -->
+          <div class="flex items-center gap-2 bg-slate-100 dark:bg-zinc-950 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-800">
+            <span class="text-[11px] font-medium text-slate-400 dark:text-zinc-500 mr-1">Browser Tab:</span>
+            <div class="flex items-center gap-2 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-lg shadow-sm border border-slate-200/60 dark:border-zinc-800 max-w-[200px]">
+              <canvas id="browserTabCanvas" width="16" height="16" class="w-4 h-4 flex-shrink-0"></canvas>
+              <span class="text-xs font-medium truncate text-slate-700 dark:text-zinc-300">My Web App</span>
+              <span class="text-slate-400 text-xs ml-1">×</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview Grid Container -->
+        <div id="previewGrid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <!-- Preview cards rendered dynamically via JS -->
+        </div>
+
+        <!-- Developer HTML & WebManifest Snippet Card -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-5 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-zinc-100">HTML Head Integration Snippet</h3>
+              <p class="text-xs text-slate-500 dark:text-zinc-400">Included automatically inside the ZIP bundle alongside <code class="font-mono text-brand-500">site.webmanifest</code></p>
+            </div>
+            <button id="copySnippetBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-zinc-800 hover:bg-brand-500 hover:text-white text-slate-700 dark:text-zinc-300 transition-colors flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy HTML</span>
+            </button>
+          </div>
+
+          <pre class="p-4 rounded-xl bg-slate-950 text-slate-200 text-xs font-mono overflow-x-auto leading-relaxed border border-slate-800"><code id="htmlSnippetCode">&lt;link rel="icon" href="/favicon.ico" sizes="any"&gt;
+&lt;link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"&gt;
+&lt;link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"&gt;
+&lt;link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"&gt;
+&lt;link rel="manifest" href="/site.webmanifest"&gt;</code></pre>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    /**
+     * IconForge — Client-Side Icon & Favicon Converter
+     * Complete single-file application featuring:
+     * - Real-time HTML5 Canvas compositing (corner radius, padding, fit modes, solid/transparent bg)
+     * - Genuine binary .ICO encoder (6-byte ICONDIR + 16-byte ICONDIRENTRY array + embedded PNG payloads)
+     * - Multi-format individual export (.PNG, .WEBP, .SVG)
+     * - Complete ZIP bundle generation via JSZip (icons + favicon.ico + apple-touch-icon + site.webmanifest)
+     */
+
+    // Standard icon resolutions supported
+    const ICON_SIZES = [
+      { size: 16, label: '16×16', role: 'Browser Tab', icoCompatible: true },
+      { size: 32, label: '32×32', role: 'Taskbar / Retina Tab', icoCompatible: true },
+      { size: 48, label: '48×48', role: 'Desktop Shortcut', icoCompatible: true },
+      { size: 64, label: '64×64', role: 'Windows Explorer', icoCompatible: true },
+      { size: 128, label: '128×128', role: 'Chrome Web Store', icoCompatible: true },
+      { size: 256, label: '256×256', role: 'High-DPI ICO Max', icoCompatible: true },
+      { size: 512, label: '512×512', role: 'PWA / App Store', icoCompatible: false }
+    ];
+
+    // Application State
+    const state = {
+      sourceImage: null,
+      fileName: 'icon',
+      selectedSizes: new Set([16, 32, 48, 64, 128, 256, 512]),
+      exportFormat: 'png', // 'png' | 'webp' | 'svg'
+      bgMode: 'transparent', // 'transparent' | 'solid'
+      bgColor: '#6366f1',
+      cornerRadius: 0, // 0 to 50 (%)
+      padding: 0, // 0 to 30 (%)
+      fitMode: 'contain' // 'contain' | 'cover' | 'stretch'
+    };
+
+    // DOM Element References
+    const els = {
+      themeToggle: document.getElementById('themeToggle'),
+      loadDemoBtn: document.getElementById('loadDemoBtn'),
+      dropZone: document.getElementById('dropZone'),
+      fileInput: document.getElementById('fileInput'),
+      uploadPrompt: document.getElementById('uploadPrompt'),
+      uploadedPreviewBox: document.getElementById('uploadedPreviewBox'),
+      originalThumb: document.getElementById('originalThumb'),
+      fileNameDisplay: document.getElementById('fileNameDisplay'),
+      fileDimensionsDisplay: document.getElementById('fileDimensionsDisplay'),
+      sourceMeta: document.getElementById('sourceMeta'),
+      resetAdjustmentsBtn: document.getElementById('resetAdjustmentsBtn'),
+      bgModeBtns: document.querySelectorAll('.bg-mode-btn'),
+      colorPickerRow: document.getElementById('colorPickerRow'),
+      bgColorInput: document.getElementById('bgColorInput'),
+      bgHexText: document.getElementById('bgHexText'),
+      radiusSlider: document.getElementById('radiusSlider'),
+      radiusValue: document.getElementById('radiusValue'),
+      squirclePreset: document.getElementById('squirclePreset'),
+      paddingSlider: document.getElementById('paddingSlider'),
+      paddingValue: document.getElementById('paddingValue'),
+      fitBtns: document.querySelectorAll('.fit-btn'),
+      presetFavicon: document.getElementById('presetFavicon'),
+      presetAll: document.getElementById('presetAll'),
+      sizeCheckboxes: document.getElementById('sizeCheckboxes'),
+      selectedCountBadge: document.getElementById('selectedCountBadge'),
+      formatBtns: document.querySelectorAll('.format-btn'),
+      downloadIcoBtn: document.getElementById('downloadIcoBtn'),
+      downloadZipBtn: document.getElementById('downloadZipBtn'),
+      previewGrid: document.getElementById('previewGrid'),
+      browserTabCanvas: document.getElementById('browserTabCanvas'),
+      copySnippetBtn: document.getElementById('copySnippetBtn'),
+      htmlSnippetCode: document.getElementById('htmlSnippetCode'),
+      toastContainer: document.getElementById('toastContainer')
+    };
+
+    /**
+     * Initializes UI components, binds event listeners, and loads a default vector icon
+     * so the workspace is immediately interactive on first visit.
+     */
+    function init() {
+      renderSizeCheckboxes();
+      renderPreviewCards();
+      bindEvents();
+      loadDefaultVectorGraphic();
+    }
+
+    /**
+     * Generates a crisp built-in SVG graphic as the initial demo image
+     */
+    function loadDefaultVectorGraphic() {
+      const demoSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <defs>
+            <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="50%" stop-color="#8b5cf6"/>
+              <stop offset="100%" stop-color="#ec4899"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+              <stop offset="100%" stop-color="#e0e7ff" stop-opacity="0.85"/>
+            </linearGradient>
+          </defs>
+          <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#g1)"/>
+          <path d="M256 116 L376 256 L256 396 L136 256 Z" fill="url(#g2)"/>
+          <circle cx="256" cy="256" r="46" fill="#4f46e5"/>
+        </svg>
+      `.trim();
+
+      const blob = new Blob([demoSvg], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        state.sourceImage = img;
+        state.fileName = 'iconforge-sample';
+        updateSourceUI('iconforge-sample.svg', 512, 512, url);
+        renderAllPreviews();
+      };
+      img.src = url;
+    }
+
+    /**
+     * Updates the left-panel upload card with file details
+     */
+    function updateSourceUI(fullName, width, height, previewUrl) {
+      els.uploadPrompt.classList.add('hidden');
+      els.uploadedPreviewBox.classList.remove('hidden');
+      els.originalThumb.src = previewUrl;
+      els.fileNameDisplay.textContent = fullName;
+      els.fileDimensionsDisplay.textContent = `${width} × ${height} px`;
+      els.sourceMeta.textContent = `${width}×${height}`;
+    }
+
+    /**
+     * Renders the size selection checkboxes
+     */
+    function renderSizeCheckboxes() {
+      els.sizeCheckboxes.innerHTML = '';
+      ICON_SIZES.forEach(({ size, label, icoCompatible }) => {
+        const isChecked = state.selectedSizes.has(size);
+        const wrapper = document.createElement('label');
+        wrapper.className = `flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+          isChecked 
+            ? 'border-brand-500/60 bg-brand-500/5 dark:bg-brand-500/10 text-slate-900 dark:text-zinc-100' 
+            : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-600 dark:text-zinc-400'
+        }`;
+
+        wrapper.innerHTML = `
+          <div class="flex items-center gap-2">
+            <input type="checkbox" value="${size}" ${isChecked ? 'checked' : ''} class="size-checkbox w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-zinc-600 dark:bg-zinc-800">
+            <span class="text-xs font-mono font-medium">${label}</span>
+          </div>
+          ${!icoCompatible ? '<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400" title="Excluded from .ICO binary format (max 256px)">PNG/ZIP</span>' : ''}
+        `;
+
+        const checkbox = wrapper.querySelector('input');
+        checkbox.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            state.selectedSizes.add(size);
+          } else {
+            state.selectedSizes.delete(size);
+          }
+          renderSizeCheckboxes();
+          updateSelectedCountBadge();
+          renderAllPreviews();
+        });
+
+        els.sizeCheckboxes.appendChild(wrapper);
+      });
+      updateSelectedCountBadge();
+    }
+
+    function updateSelectedCountBadge() {
+      els.selectedCountBadge.textContent = `${state.selectedSizes.size} selected`;
+    }
+
+    /**
+     * Builds the preview cards grid for each standard icon size
+     */
+    function renderPreviewCards() {
+      els.previewGrid.innerHTML = '';
+
+      ICON_SIZES.forEach(({ size, label, role }) => {
+        const card = document.createElement('div');
+        card.id = `preview-card-${size}`;
+        card.className = 'group bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col justify-between transition-all duration-200 hover:border-brand-500/50 hover:shadow-md';
+
+        // Cap visual display box size so large 512px icons fit cleanly while preserving pixel canvas resolution
+        const visualDisplaySize = Math.min(size, 144);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <span class="text-sm font-mono font-semibold text-slate-900 dark:text-zinc-100">${label}</span>
+              <span class="block text-[11px] text-slate-400 dark:text-zinc-500">${role}</span>
+            </div>
+            <button type="button" data-download-size="${size}" class="single-download-btn p-2 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-brand-600 hover:text-white transition-colors" title="Download ${label}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="flex-1 min-h-[168px] rounded-xl checkerboard border border-slate-200/80 dark:border-zinc-800 flex items-center justify-center p-4 overflow-hidden relative">
+            <canvas id="canvas-${size}" width="${size}" height="${size}" style="width: ${visualDisplaySize}px; height: ${visualDisplaySize}px; image-rendering: ${size <= 32 ? 'pixelated' : 'auto'};" class="transition-transform duration-200 group-hover:scale-105"></canvas>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between text-[11px] font-mono text-slate-400 dark:text-zinc-500">
+            <span id="meta-size-${size}">-- KB</span>
+            <span class="uppercase format-label-badge">${state.exportFormat}</span>
+          </div>
+        `;
+
+        card.querySelector('.single-download-btn').addEventListener('click', () => {
+          downloadSingleIcon(size);
+        });
+
+        els.previewGrid.appendChild(card);
+      });
+    }
+
+    /**
+     * Core Rendering Pipeline: Draws the uploaded image onto a target square canvas
+     * applying corner radius clipping, solid background color, inner padding, and fit mode.
+     */
+    function drawIconToCanvas(canvas, targetSize) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, targetSize, targetSize);
+
+      if (!state.sourceImage) return;
+
+      ctx.save();
+
+      // 1. Apply rounded rectangle / squircle clipping path
+      const radiusPx = (state.cornerRadius / 100) * targetSize;
+      drawRoundedRectPath(ctx, 0, 0, targetSize, targetSize, radiusPx);
+      ctx.clip();
+
+      // 2. Fill solid background if selected
+      if (state.bgMode === 'solid') {
+        ctx.fillStyle = state.bgColor;
+        ctx.fillRect(0, 0, targetSize, targetSize);
+      }
+
+      // 3. Calculate inner padded bounding box
+      const padPx = (state.padding / 100) * targetSize;
+      const innerX = padPx;
+      const innerY = padPx;
+      const innerW = Math.max(1, targetSize - padPx * 2);
+      const innerH = Math.max(1, targetSize - padPx * 2);
+
+      // 4. Compute source & destination geometry based on fitMode
+      const img = state.sourceImage;
+      const srcW = img.naturalWidth || img.width || 512;
+      const srcH = img.naturalHeight || img.height || 512;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      if (state.fitMode === 'stretch') {
+        ctx.drawImage(img, innerX, innerY, innerW, innerH);
+      } else if (state.fitMode === 'contain') {
+        const scale = Math.min(innerW / srcW, innerH / srcH);
+        const drawW = srcW * scale;
+        const drawH = srcH * scale;
+        const drawX = innerX + (innerW - drawW) / 2;
+        const drawY = innerY + (innerH - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      } else if (state.fitMode === 'cover') {
+        const scale = Math.max(innerW / srcW, innerH / srcH);
+        const drawW = srcW * scale;
+        const drawH = srcH * scale;
+        const drawX = innerX + (innerW - drawW) / 2;
+        const drawY = innerY + (innerH - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      }
+
+      ctx.restore();
+    }
+
+    /**
+     * Helper to trace a rounded rectangle path on CanvasRenderingContext2D
+     */
+    function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    /**
+     * Re-renders all preview canvases, updates simulated browser tab icon,
+     * dims unselected size cards, and computes estimated file sizes.
+     */
+    function renderAllPreviews() {
+      if (!state.sourceImage) return;
+
+      // Update simulated 16x16 browser tab icon
+      drawIconToCanvas(els.browserTabCanvas, 16);
+
+      ICON_SIZES.forEach(({ size }) => {
+        const card = document.getElementById(`preview-card-${size}`);
+        const canvas = document.getElementById(`canvas-${size}`);
+        const metaEl = document.getElementById(`meta-size-${size}`);
+        const formatBadge = card.querySelector('.format-label-badge');
+
+        // Highlight or dim based on size checkbox state
+        if (state.selectedSizes.has(size)) {
+          card.classList.remove('opacity-45');
+        } else {
+          card.classList.add('opacity-45');
+        }
+
+        formatBadge.textContent = state.exportFormat;
+        drawIconToCanvas(canvas, size);
+
+        // Estimate output byte size asynchronously
+        canvas.toBlob((blob) => {
+          if (blob && metaEl) {
+            const kb = (blob.size / 1024).toFixed(1);
+            metaEl.textContent = `${kb} KB`;
+          }
+        }, state.exportFormat === 'webp' ? 'image/webp' : 'image/png', 0.92);
+      });
+    }
+
+    /**
+     * Renders an offscreen canvas at an arbitrary size (e.g., 180x180 for apple-touch-icon)
+     * and returns a Blob in the requested MIME type.
+     */
+    function renderSizeToBlob(size, mimeType = 'image/png', quality = 0.95) {
+      return new Promise((resolve) => {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = size;
+        offscreen.height = size;
+        drawIconToCanvas(offscreen, size);
+        offscreen.toBlob((blob) => resolve(blob), mimeType, quality);
+      });
+    }
+
+    /**
+     * Generates a clean SVG wrapper embedding the processed high-res raster or vector output
+     */
+    function generateSvgContent(size) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = size;
+      offscreen.height = size;
+      drawIconToCanvas(offscreen, size);
+      const dataUrl = offscreen.toDataURL('image/png');
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <image width="${size}" height="${size}" xlink:href="${dataUrl}"/>
+</svg>`;
+    }
+
+    /**
+     * GENUINE CLIENT-SIDE BINARY .ICO GENERATOR
+     * ------------------------------------------------------------------------
+     * Encodes multiple PNG-compressed icon images into a valid Windows/Favicon .ICO binary:
+     * 1. ICONDIR Header (6 bytes):
+     *    - Bytes 0-1: Reserved (0)
+     *    - Bytes 2-3: Image Type (1 = Icon)
+     *    - Bytes 4-5: Number of images (N)
+     * 2. ICONDIRENTRY Array (16 bytes * N):
+     *    - Byte 0: Width (0 means 256px)
+     *    - Byte 1: Height (0 means 256px)
+     *    - Byte 2: Color palette count (0 = no palette)
+     *    - Byte 3: Reserved (0)
+     *    - Bytes 4-5: Color planes (1)
+     *    - Bytes 6-7: Bits per pixel (32)
+     *    - Bytes 8-11: Size of PNG image data in bytes (uint32 LE)
+     *    - Bytes 12-15: Offset of PNG image data from start of file (uint32 LE)
+     * 3. Concatenated PNG image binary payloads.
+     */
+    async function generateIcoBlob(sizesList) {
+      // Filter to valid ICO dimensions (1px to 256px) and sort ascending
+      const validSizes = sizesList.filter(s => s <= 256).sort((a, b) => a - b);
+      if (validSizes.length === 0) {
+        throw new Error('Select at least one size ≤ 256×256 for .ICO generation.');
+      }
+
+      // Render each size as a PNG Uint8Array
+      const pngBuffers = [];
+      for (const size of validSizes) {
+        const blob = await renderSizeToBlob(size, 'image/png');
+        const arrayBuffer = await blob.arrayBuffer();
+        pngBuffers.push({
+          size,
+          data: new Uint8Array(arrayBuffer)
+        });
+      }
+
+      const count = pngBuffers.length;
+      const headerSize = 6;
+      const dirEntrySize = 16;
+      let currentOffset = headerSize + (dirEntrySize * count);
+
+      const totalFileSize = currentOffset + pngBuffers.reduce((sum, item) => sum + item.data.byteLength, 0);
+      const buffer = new ArrayBuffer(totalFileSize);
+      const view = new DataView(buffer);
+      const uint8View = new Uint8Array(buffer);
+
+      // Write 6-byte ICONDIR header
+      view.setUint16(0, 0, true);     // Reserved = 0
+      view.setUint16(2, 1, true);     // Type = 1 (ICO)
+      view.setUint16(4, count, true); // Number of images
+
+      // Write 16-byte ICONDIRENTRY structs & copy PNG image data
+      pngBuffers.forEach((item, index) => {
+        const entryOffset = headerSize + (index * dirEntrySize);
+        const dimByte = item.size === 256 ? 0 : item.size; // 256 is stored as 0 in ICO spec
+
+        view.setUint8(entryOffset + 0, dimByte);               // Width
+        view.setUint8(entryOffset + 1, dimByte);               // Height
+        view.setUint8(entryOffset + 2, 0);                     // Color count
+        view.setUint8(entryOffset + 3, 0);                     // Reserved
+        view.setUint16(entryOffset + 4, 1, true);              // Color planes
+        view.setUint16(entryOffset + 6, 32, true);             // Bits per pixel
+        view.setUint32(entryOffset + 8, item.data.byteLength, true); // Payload byte size
+        view.setUint32(entryOffset + 12, currentOffset, true); // Offset from file start
+
+        // Write PNG binary payload at currentOffset
+        uint8View.set(item.data, currentOffset);
+        currentOffset += item.data.byteLength;
+      });
+
+      return new Blob([buffer], { type: 'image/x-icon' });
+    }
+
+    /**
+     * Triggers browser download for a Blob
+     */
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    /**
+     * Downloads a single icon size in the user's chosen individual format (.png, .webp, or .svg)
+     */
+    async function downloadSingleIcon(size) {
+      if (!state.sourceImage) {
+        showToast('Please upload an image first.', 'error');
+        return;
+      }
+
+      const ext = state.exportFormat;
+      const filename = `${state.fileName}-${size}x${size}.${ext}`;
+
+      if (ext === 'svg') {
+        const svgStr = generateSvgContent(size);
+        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        triggerDownload(blob, filename);
+      } else {
+        const mime = ext === 'webp' ? 'image/webp' : 'image/png';
+        const blob = await renderSizeToBlob(size, mime);
+        triggerDownload(blob, filename);
+      }
+
+      showToast(`Downloaded ${filename}`, 'success');
+    }
+
+    /**
+     * Downloads the multi-size binary .ICO bundle
+     */
+    async function handleDownloadIco() {
+      if (!state.sourceImage) {
+        showToast('Please upload an image first.', 'error');
+        return;
+      }
+
+      try {
+        const selectedArr = Array.from(state.selectedSizes);
+        const icoSizes = selectedArr.filter(s => s <= 256);
+        if (icoSizes.length === 0) {
+          showToast('Select at least one size ≤ 256px for .ICO', 'error');
+          return;
+        }
+
+        const icoBlob = await generateIcoBlob(icoSizes);
+        triggerDownload(icoBlob, 'favicon.ico');
+        showToast(`Generated multi-size favicon.ico (${icoSizes.join(', ')}px)`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Failed to generate .ICO file', 'error');
+      }
+    }
+
+    /**
+     * Generates and downloads a comprehensive ZIP package containing:
+     * - Multi-size favicon.ico
+     * - All selected PNG sizes (favicon-16x16.png, icon-512x512.png, etc.)
+     * - apple-touch-icon.png (180x180)
+     * - site.webmanifest
+     * - README-usage.html snippet
+     */
+    async function handleDownloadZip() {
+      if (!state.sourceImage) {
+        showToast('Please upload an image first.', 'error');
+        return;
+      }
+
+      if (state.selectedSizes.size === 0) {
+        showToast('Select at least one icon size to export.', 'error');
+        return;
+      }
+
+      try {
+        const zip = new JSZip();
+        const selectedArr = Array.from(state.selectedSizes).sort((a, b) => a - b);
+
+        // 1. Add multi-size favicon.ico (using selected sizes <= 256, or fallback to 16,32,48)
+        const icoSizes = selectedArr.filter(s => s <= 256);
+        const finalIcoSizes = icoSizes.length > 0 ? icoSizes : [16, 32, 48];
+        const icoBlob = await generateIcoBlob(finalIcoSizes);
+        zip.file('favicon.ico', icoBlob);
+
+        // 2. Add each selected PNG size
+        for (const size of selectedArr) {
+          const pngBlob = await renderSizeToBlob(size, 'image/png');
+          const name = (size === 16 || size === 32 || size === 48)
+            ? `favicon-${size}x${size}.png`
+            : `icon-${size}x${size}.png`;
+          zip.file(name, pngBlob);
+        }
+
+        // 3. Add Apple Touch Icon (180x180)
+        const appleTouchBlob = await renderSizeToBlob(180, 'image/png');
+        zip.file('apple-touch-icon.png', appleTouchBlob);
+
+        // 4. Add site.webmanifest
+        const manifestObj = {
+          name: 'My Web Application',
+          short_name: 'App',
+          icons: [
+            { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }
+          ],
+          theme_color: state.bgMode === 'solid' ? state.bgColor : '#ffffff',
+          background_color: state.bgMode === 'solid' ? state.bgColor : '#ffffff',
+          display: 'standalone'
+        };
+        // Also generate 192x192 PNG so manifest references are 100% valid
+        const icon192Blob = await renderSizeToBlob(192, 'image/png');
+        zip.file('icon-192x192.png', icon192Blob);
+        zip.file('site.webmanifest', JSON.stringify(manifestObj, null, 2));
+
+        // 5. Add HTML snippet file
+        zip.file('head-tags.html', els.htmlSnippetCode.textContent);
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        triggerDownload(zipBlob, `${state.fileName}-icons-bundle.zip`);
+        showToast('Downloaded complete ZIP icon package!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Error creating ZIP package.', 'error');
+      }
+    }
+
+    /**
+     * Handles file input or drag-and-drop image loading
+     */
+    function handleFileUpload(file) {
+      if (!file) return;
+
+      const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        showToast('Unsupported format. Please use PNG, JPG, WEBP, or SVG.', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          state.sourceImage = img;
+          state.fileName = file.name.replace(/\.[^/.]+$/, '') || 'icon';
+          updateSourceUI(file.name, img.naturalWidth || 512, img.naturalHeight || 512, e.target.result);
+          renderAllPreviews();
+          showToast(`Loaded "${file.name}"`, 'success');
+        };
+        img.onerror = () => {
+          showToast('Failed to decode image file.', 'error');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /**
+     * Displays a non-intrusive toast notification
+     */
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      const isError = type === 'error';
+
+      toast.className = `toast-enter pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium ${
+        isError
+          ? 'bg-red-600 text-white border-red-500'
+          : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-800 dark:border-zinc-200'
+      }`;
+
+      toast.innerHTML = `
+        ${isError
+          ? '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>'
+          : '<svg class="w-4 h-4 text-emerald-400 dark:text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'
+        }
+        <span>${message}</span>
+      `;
+
+      els.toastContainer.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'all 0.2s ease';
+        setTimeout(() => toast.remove(), 220);
+      }, 3000);
+    }
+
+    /**
+     * Binds all UI interactive controls
+     */
+    function bindEvents() {
+      // Theme Toggle
+      els.themeToggle.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+      });
+
+      // Sample Icon Button
+      els.loadDemoBtn.addEventListener('click', () => {
+        loadDefaultVectorGraphic();
+        showToast('Loaded sample vector icon');
+      });
+
+      // Dropzone Click & Keyboard
+      els.dropZone.addEventListener('click', () => els.fileInput.click());
+      els.dropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          els.fileInput.click();
+        }
+      });
+
+      els.fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleFileUpload(e.target.files[0]);
+        }
+      });
+
+      // Drag & Drop Events
+      ['dragenter', 'dragover'].forEach(evtName => {
+        els.dropZone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          els.dropZone.classList.add('border-brand-500', 'bg-brand-50/40', 'dark:bg-brand-500/10');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(evtName => {
+        els.dropZone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          els.dropZone.classList.remove('border-brand-500', 'bg-brand-50/40', 'dark:bg-brand-500/10');
+        });
+      });
+
+      els.dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer?.files;
+        if (files && files[0]) {
+          handleFileUpload(files[0]);
+        }
+      });
+
+      // Background Mode Toggle (Transparent vs Solid)
+      els.bgModeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.bgMode = btn.dataset.bgMode;
+          els.bgModeBtns.forEach(b => {
+            const active = b.dataset.bgMode === state.bgMode;
+            b.className = active
+              ? 'bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm transition-all'
+              : 'bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-all';
+          });
+          els.colorPickerRow.classList.toggle('hidden', state.bgMode === 'transparent');
+          renderAllPreviews();
+        });
+      });
+
+      // Solid Color Picker Sync
+      els.bgColorInput.addEventListener('input', (e) => {
+        state.bgColor = e.target.value;
+        els.bgHexText.value = e.target.value.toUpperCase();
+        renderAllPreviews();
+      });
+
+      els.bgHexText.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+          state.bgColor = val;
+          els.bgColorInput.value = val;
+          renderAllPreviews();
+        }
+      });
+
+      // Corner Radius Slider & iOS Squircle Preset
+      els.radiusSlider.addEventListener('input', (e) => {
+        state.cornerRadius = parseInt(e.target.value, 10);
+        els.radiusValue.textContent = `${state.cornerRadius}%`;
+        renderAllPreviews();
+      });
+
+      els.squirclePreset.addEventListener('click', () => {
+        state.cornerRadius = 22;
+        els.radiusSlider.value = 22;
+        els.radiusValue.textContent = '22%';
+        renderAllPreviews();
+      });
+
+      // Padding Slider
+      els.paddingSlider.addEventListener('input', (e) => {
+        state.padding = parseInt(e.target.value, 10);
+        els.paddingValue.textContent = `${state.padding}%`;
+        renderAllPreviews();
+      });
+
+      // Fit Mode Buttons
+      els.fitBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.fitMode = btn.dataset.fit;
+          els.fitBtns.forEach(b => {
+            const active = b.dataset.fit === state.fitMode;
+            b.className = active
+              ? 'fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 transition-all'
+              : 'fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all';
+          });
+          renderAllPreviews();
+        });
+      });
+
+      // Reset Adjustments
+      els.resetAdjustmentsBtn.addEventListener('click', () => {
+        state.bgMode = 'transparent';
+        state.bgColor = '#6366f1';
+        state.cornerRadius = 0;
+        state.padding = 0;
+        state.fitMode = 'contain';
+
+        els.radiusSlider.value = 0;
+        els.radiusValue.textContent = '0%';
+        els.paddingSlider.value = 0;
+        els.paddingValue.textContent = '0%';
+        els.colorPickerRow.classList.add('hidden');
+
+        els.bgModeBtns.forEach(b => {
+          const active = b.dataset.bgMode === 'transparent';
+          b.className = active
+            ? 'bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-sm transition-all'
+            : 'bg-mode-btn px-2.5 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-all';
+        });
+
+        els.fitBtns.forEach(b => {
+          const active = b.dataset.fit === 'contain';
+          b.className = active
+            ? 'fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 transition-all'
+            : 'fit-btn py-2 px-3 rounded-xl text-xs font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all';
+        });
+
+        renderAllPreviews();
+        showToast('Styling reset to defaults');
+      });
+
+      // Size Presets
+      els.presetFavicon.addEventListener('click', () => {
+        state.selectedSizes = new Set([16, 32, 48]);
+        renderSizeCheckboxes();
+        renderAllPreviews();
+      });
+
+      els.presetAll.addEventListener('click', () => {
+        state.selectedSizes = new Set(ICON_SIZES.map(item => item.size));
+        renderSizeCheckboxes();
+        renderAllPreviews();
+      });
+
+      // Individual Export Format Selector
+      els.formatBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.exportFormat = btn.dataset.format;
+          els.formatBtns.forEach(b => {
+            const active = b.dataset.format === state.exportFormat;
+            b.className = active
+              ? 'format-btn py-1.5 px-2.5 rounded-lg text-xs font-mono font-medium border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 transition-all'
+              : 'format-btn py-1.5 px-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-600 transition-all';
+          });
+          renderAllPreviews();
+        });
+      });
+
+      // Primary Download Buttons
+      els.downloadIcoBtn.addEventListener('click', handleDownloadIco);
+      els.downloadZipBtn.addEventListener('click', handleDownloadZip);
+
+      // Copy HTML Snippet (using execCommand fallback for iFrame compatibility)
+      els.copySnippetBtn.addEventListener('click', () => {
+        const text = els.htmlSnippetCode.textContent;
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          showToast('HTML tags copied to clipboard!', 'success');
+        } catch (err) {
+          showToast('Failed to copy snippet', 'error');
+        }
+        document.body.removeChild(textArea);
+      });
+    }
+
+    // Launch application when DOM is ready
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
